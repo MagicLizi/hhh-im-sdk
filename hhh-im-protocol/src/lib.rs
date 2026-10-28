@@ -19,7 +19,6 @@
 
 pub mod attribution;
 pub mod content;
-pub mod groups;
 pub mod login_window;
 pub mod method;
 pub mod platform;

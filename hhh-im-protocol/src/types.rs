@@ -593,14 +593,6 @@ pub const EMOJI_CATEGORY_ICONS: [&str; 9] = [
     rename_all_fields = "camelCase"
 )]
 pub enum Event {
-    /// 分组目录或成员发生变化；只标记失效，下一次读取仍走正常查询与限流。
-    ConversationGroupsChanged {
-        /// 目录有变化。
-        catalog: bool,
-        /// 受影响的组；为空表示所有组。
-        group_ids: Vec<String>,
-    },
-
     /// 新到或变了的消息（含编辑、撤回成标记、话题根变化）。
     Messages {
         /// 会话编号。

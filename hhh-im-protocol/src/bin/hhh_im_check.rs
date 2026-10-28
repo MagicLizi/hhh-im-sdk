@@ -1125,6 +1125,44 @@ async fn check_v12_calls(
             Err(e) => report.fail("会话发现能调", e),
         }
     }
+    if !caps.people.contacts {
+        report.skip("好友目录只返回私聊资料", "没声明 people.contacts");
+    } else if !online {
+        report.skip("好友目录只返回私聊资料", "没登录，读不了");
+    } else {
+        match call_t(
+            conn,
+            "contacts/list",
+            json!({"limit": 20}),
+            Duration::from_secs(30),
+        )
+        .await
+        {
+            Ok(value) => match serde_json::from_value::<
+                hhh_im_protocol::method::Page<hhh_im_protocol::types::Conversation>,
+            >(value)
+            {
+                Ok(page)
+                    if page.items.len() <= 20
+                        && page.items.iter().all(|c| {
+                            c.kind == hhh_im_protocol::types::ConversationKind::Direct
+                                && !c.id.is_empty()
+                                && c.peer.as_ref().is_some_and(|id| !id.is_empty())
+                        }) =>
+                {
+                    report.pass("好友目录只返回私聊资料")
+                }
+                Ok(_) => report.fail(
+                    "好友目录只返回私聊资料",
+                    "条数超过请求上限，或有缺少编号/对方的非私聊",
+                ),
+                Err(error) => {
+                    report.fail("好友目录只返回私聊资料", format!("结果格式不对：{error}"))
+                }
+            },
+            Err(error) => report.fail("好友目录只返回私聊资料", error),
+        }
+    }
     if !caps.people.get {
         report.skip("人名册分清没有与没读到", "没声明 people.get");
     } else if !online {

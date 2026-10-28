@@ -653,9 +653,6 @@ impl PlatformDesc {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
-    /// 可选会话分组，与列群能力独立。
-    #[serde(default, skip_serializing_if = "crate::groups::GroupCaps::is_empty")]
-    pub conversation_groups: crate::groups::GroupCaps,
     /// 表情包与远端收藏的独立能力。
     #[serde(default, skip_serializing_if = "crate::StickerCaps::is_empty")]
     pub stickers: crate::StickerCaps,
@@ -860,6 +857,10 @@ pub struct MessageCaps {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PeopleCaps {
+    /// 能分页列出已建立关系的联系人及其私聊资料，不依赖近期消息。
+    /// 宿主按 `contacts/list` 读取；未声明时不发请求。
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub contacts: bool,
     /// 能按编号批量读人。
     #[serde(default)]
     pub get: bool,
@@ -1074,11 +1075,7 @@ impl Capabilities {
         if self.resources.variants && !self.resources.read {
             return Err("声明 resources.variants 时必须能读取资源（resources.read）".into());
         }
-        if (self.conversation_groups.members || self.conversation_groups.changes)
-            && !self.conversation_groups.list
-        {
-            return Err("声明分组成员或变更通知时必须支持分组目录".into());
-        }
+
         if self.agent_attribution.send && !self.send.as_ref().is_some_and(|send| send.text) {
             return Err("声明 agentAttribution.send 时必须能发送文字".into());
         }
@@ -1383,6 +1380,7 @@ mod tests {
             get: true,
             search: false,
             bots: false,
+            contacts: false,
             batch_max: None,
         })
         .unwrap();

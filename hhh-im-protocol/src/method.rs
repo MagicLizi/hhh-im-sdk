@@ -15,6 +15,8 @@ use crate::types::{
 /// 协议里的方法名。字符串形式见 [`Method::as_str`]。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
+    /// 分页读取已有联系人对应的私聊资料（参数沿用 `ConversationsListParams`，结果 `Page<Conversation>`）。
+    ContactsList,
     // —— 生命周期（宿主→插件）——
     /// 协商版本，取回平台说明与能力。
     Initialize,
@@ -77,10 +79,6 @@ pub enum Method {
     // —— 读取（宿主→插件）——
     /// 列会话。
     ConversationsList,
-    /// 列出会话分组。
-    ConversationGroupsList,
-    /// 读取分组里的完整会话。
-    ConversationGroupsMembers,
     /// 取会话。
     ConversationsGet,
     /// 搜会话。
@@ -199,9 +197,8 @@ impl Method {
             Method::SessionNotice => "session/notice",
             Method::SessionRenew => "session/renew",
             Method::AccountAvatar => "account/avatar",
-            Method::ConversationGroupsList => "conversationGroups/list",
-            Method::ConversationGroupsMembers => "conversationGroups/members",
             Method::ConversationsList => "conversations/list",
+            Method::ContactsList => "contacts/list",
             Method::ConversationsGet => "conversations/get",
             Method::ConversationsSearch => "conversations/search",
             Method::ConversationsMembers => "conversations/members",
@@ -285,9 +282,8 @@ impl Method {
             Method::SessionNotice,
             Method::SessionRenew,
             Method::AccountAvatar,
-            Method::ConversationGroupsList,
-            Method::ConversationGroupsMembers,
             Method::ConversationsList,
+            Method::ContactsList,
             Method::ConversationsGet,
             Method::ConversationsSearch,
             Method::ConversationsMembers,
@@ -338,9 +334,6 @@ impl Method {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitializeParams {
-    /// 宿主接受分组扩展及其失效事件；旧宿主缺省 false。
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub conversation_groups: bool,
     /// 宿主支持的协议主版本。
     pub protocol_versions: Vec<u32>,
     /// 宿主信息。

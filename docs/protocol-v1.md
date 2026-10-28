@@ -238,6 +238,7 @@
 ```
 
 - v12：`conversations.recentActivity` 为真时程序能回答 `conversations/recentActivity`（会话发现，§8）；`session.renew` 为真时程序能用存着的凭据续期（`session/renew`，§6.6）。
+- `people.contacts` 是可选好友目录能力，省略即不支持。读取独立于会话发现与聊天时间：包含没有消息、只有旧消息的既有好友，不创建关系、不读取消息、不列旧群。游标不透明，分页失败重试同一页；插件不能以跳过失败好友冒充完整页。宿主把资料恢复到列表，用户打开或近期消息发现后才启用正常消息读取。未声明的旧插件不会收到 `contacts/list`。
 - v15：`people.bots` 为真时程序能按编号读机器人与应用（`people/get` 的 `bots`），要先声明 `people.get`；不写时宿主把机器人一律记成“没有”、不为它们问程序。`people.batchMax`（1–2000）是一次 `people/get` 最多问几个，平台一次读一大批更省时写（如读一遍整份成员名单就认出一大批人）；不写是 100。
 - v35：`account.hostAvatar` 为真时程序收宿主交来的本机用户头像（`account/avatar`，§6.8），拿去设置本人在这家 IM 里的头像；不写时宿主不交，线上不出现 `account`。
 
@@ -509,6 +510,7 @@ v13 起每一步都可以带 `links: [{id, label}]`（另一种做法，画成�
 
 | 方法 | 参数 | 结果 | 需要的能力 |
 |---|---|---|---|
+| `contacts/list` | `limit`（1–100）、`cursor`? | `{items: Conversation[], next?}`；只含当前账号已有好友对应的私聊，必须有非空 `peer`，不能是本人 | `people.contacts` |
 | `conversations/list` | `limit`（1–100）、`cursor`? | `{items: Conversation[], next?}` | `conversations.list` |
 | `conversations/get` | `conversationId` | `Conversation` | 必需 |
 | `conversations/search` | `text`（1–50 个字）、`limit`（1–20）、`cursor`? | `{items, next?, notice?}` | `conversations.search` |
@@ -852,6 +854,7 @@ hhh-im-check <清单路径> [--mock] [--live --read-only] [--allow-send <会话�
 | `conversations/list` / `search` / `get` | `ImClient::list_conversations` / `search_conversations` / `get_conversation` |
 | `conversations/findDirect` | `ImClient::find_direct_conversation` |
 | `conversations/members` | `ImClient::list_members` |
+| `contacts/list` | `ImClient::contacts`（`has_contacts` 声明，`HubEvent::Contacts` 交宿主） |
 | `people/search` / `people/get` | `ImClient::search_users` / `look_up_people` |
 | `messages/list` / `messages/get` | `ImClient::list_messages`（毫秒和秒在适配器里换算）/ `get_message` |
 | `reactions/list` / `add` / `remove` | `ImClient::list_reactions` / `add_reaction` / `remove_reaction` |
