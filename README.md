@@ -23,8 +23,8 @@
 
 ```toml
 [dependencies]
-hhh-im-protocol = { git = "https://github.com/MagicLizi/hhh-im-sdk", tag = "v0.15.0", features = ["runtime"] }
-hhh-im-net = { git = "https://github.com/MagicLizi/hhh-im-sdk", tag = "v0.15.0" }
+hhh-im-protocol = { git = "https://github.com/MagicLizi/hhh-im-sdk", tag = "v0.16.0", features = ["runtime"] }
+hhh-im-net = { git = "https://github.com/MagicLizi/hhh-im-sdk", tag = "v0.16.0" }
 ```
 
 联网一律用 `hhh-im-net`，不要直接依赖 reqwest：电脑上它就是 reqwest（`hhh_im_net::Client` 等原样导出），建客户端从
@@ -45,10 +45,11 @@ hhh-im-net = { git = "https://github.com/MagicLizi/hhh-im-sdk", tag = "v0.15.0" 
 装两个工具：
 
 ```sh
-cargo install --git https://github.com/MagicLizi/hhh-im-sdk --tag v0.15.0 hhh-im-protocol --features transport,package
+cargo install --git https://github.com/MagicLizi/hhh-im-sdk --tag v0.16.0 hhh-im-protocol --features transport,package
 ```
 
 - 自检：`hhh-im-check <插件文件夹>/hhh-im-provider.json`
+- 阅读能力：`receipts`、`markRead`、`readSync` 分开声明，见协议 §8.1；`--reading-chat <会话编号>` 指定只读检查范围，写回另需 `--allow-mark-read <确切消息编号>`，不能与 `--read-only` 同用。
 - 已登录的真实发送自检：加 `--allow-send <已获授权的测试会话编号>`；按 richSend 声明检查格式正文，未提供发送授权时跳过，发送结果不确定时不自动重发
 - 打包：`hhh-im-pack <插件文件夹> --target windows-x64`（不写 `--target` 用这台电脑的目标）
 - 发布：`hhh-im-pack <插件文件夹> --notes notes.md --publish`，令牌放环境变量 `HHH_IM_PUBLISH_TOKEN`（GitHub 也认 `GITHUB_TOKEN`，GitLab 也认 `GITLAB_TOKEN`），不写进任何文件

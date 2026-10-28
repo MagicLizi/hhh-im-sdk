@@ -66,6 +66,9 @@
 //! 运行：`cargo run -p hhh-im-protocol --example sample_provider --features transport`（通常由 HHH Friend 作为子进程启动）。
 //! 不联网、全在内存。
 
+#[path = "sample_provider/reading.rs"]
+mod reading;
+
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
@@ -274,6 +277,7 @@ enum Next {
 }
 
 struct State {
+    reading: reading::Reading,
     /// 插件编号（`--reserved` 时就是那个保留编号）。
     id: String,
     plain: bool,
@@ -337,7 +341,16 @@ fn main() {
     } else {
         HostMethod::Off
     };
+    let reading = reading::Reading {
+        shared: value_of("--reading-state").map(Into::into),
+        ..Default::default()
+    };
+    let mut messages = demo_messages();
+    reading
+        .refresh_messages(&mut messages)
+        .expect("示例共享消息无法读取");
     let state = Arc::new(Mutex::new(State {
+        reading,
         favorites: Vec::new(),
         id,
         plain: has("--plain"),
@@ -349,7 +362,7 @@ fn main() {
         account: default_account(),
         flows: BTreeMap::new(),
         next_flow: 1,
-        messages: demo_messages(),
+        messages,
         reactions: demo_reactions(),
         last_read: BTreeMap::new(),
         pending_step: None,
@@ -474,7 +487,14 @@ fn handle(
     port: u16,
 ) -> Result<Value, RpcError> {
     match method {
-        "initialize" => Ok(initialize(&state.lock().unwrap())),
+        "initialize" => {
+            let mut state = state.lock().unwrap();
+            state.reading.events = params["readingEvents"] == true;
+            Ok(initialize(&state))
+        }
+        "reading/receipts" | "reading/people" | "reading/sync" | "reading/mark" => {
+            reading::handle(method, params, &mut state.lock().unwrap(), out)
+        }
         "session/open" => Ok(open(params, state, out, next_id)),
         "session/logout" => {
             state.lock().unwrap().logged_in = false;
@@ -689,6 +709,7 @@ fn initialize(state: &State) -> Value {
         "settings": settings,
         "loginMethods": login_methods
     });
+    reading::declare(&mut result, state.plain);
     // 用于核对旧插件未声明贴纸能力时，宿主仍只显示小表情。
     if std::path::Path::new("no-stickers").exists() {
         result["capabilities"]
@@ -1967,6 +1988,8 @@ fn person(id: &str) -> &'static str {
     }
 }
 
+static READ_POSITION_SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 /// 一条消息：文字、原始数据；本人发的、能编辑的带编辑框原文。
 fn message(
     id: &str,
@@ -1979,6 +2002,7 @@ fn message(
     let mut m = json!({
         "id": id, "conversationId": conversation,
         "sender": { "id": sender, "kind": "user", "name": person(sender) },
+        "readPosition": (u128::try_from(at_ms).unwrap_or(0)*1_000_000 + u128::from(READ_POSITION_SERIAL.fetch_add(1,Ordering::Relaxed))).to_string(),
         "createdAtMs": at_ms,
         "content": [ { "type": "text", "text": text } ],
         "raw": { "format": "sample-msg-v1", "data": text }
@@ -2261,6 +2285,15 @@ fn watch_switches(state: Arc<Mutex<State>>, out: Out) {
     std::thread::spawn(move || {
         loop {
             std::thread::sleep(std::time::Duration::from_millis(300));
+            {
+                let mut state = state.lock().unwrap();
+                let State {
+                    reading, messages, ..
+                } = &mut *state;
+                if let Err(error) = reading.refresh_messages(messages) {
+                    eprintln!("sample_provider: 示例共享消息读取失败：{error}");
+                }
+            }
             if std::fs::remove_file("expire").is_ok() {
                 eprintln!("sample_provider: 开关 expire，说登录失效");
                 state.lock().unwrap().logged_in = false;
@@ -2336,6 +2369,10 @@ fn watch_switches(state: Arc<Mutex<State>>, out: Out) {
                 let mut state = state.lock().unwrap();
                 let n = state.messages.len();
                 let m = message(&format!("m-new-{n}"), chat, sender, now_ms(), &text, false);
+                if let Err(error) = state.reading.publish_message(&m) {
+                    eprintln!("sample_provider: 示例共享消息写入失败：{error}");
+                    continue;
+                }
                 state.messages.push(m);
                 eprintln!("sample_provider: 开关 new-message，{chat} 来了一条新消息");
             }

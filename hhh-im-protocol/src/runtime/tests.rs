@@ -9,6 +9,40 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream};
 use super::*;
 use crate::rpc::RpcId;
 
+#[tokio::test]
+async fn reading_notifications_require_explicit_host_negotiation() {
+    let (host, mut writes) = Host::new();
+    let state = crate::reading::ReadState {
+        scope: crate::reading::ReadScope {
+            conversation_id: "chat".into(),
+            thread_root: None,
+        },
+        through: Some("9007199254740992001".into()),
+        read_message_ids: Vec::new(),
+    };
+    host.reading_changed(&state);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(10), writes.next())
+            .await
+            .is_err()
+    );
+    host.set_reading_events(true);
+    host.reading_changed(&state);
+    let message = writes.next().await.unwrap();
+    assert_eq!(message.method.as_deref(), Some("reading/changed"));
+    assert_eq!(message.params.unwrap()["through"], "9007199254740992001");
+    host.set_reading_events(false);
+    host.notify(
+        "reading/changed",
+        json!({"scope":{"conversationId":"chat"}}),
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_millis(10), writes.next())
+            .await
+            .is_err()
+    );
+}
+
 /// 小插件：`slow` 睡很久（等着被取消）；`fast` 马上回；`save` 先向宿主发 `credential/save` 等回复，把回复交回；
 /// `count` 数三次平台请求；`self` 自己回复后再推一条通知；`fail` 回错误。
 struct Small;

@@ -653,6 +653,15 @@ impl PlatformDesc {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
+    /// 别人的阅读回执，与本人的读写位置独立。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipts: Option<crate::reading::ReceiptCaps>,
+    /// 本人明确查看后向平台写回。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mark_read: Option<crate::reading::MarkReadCaps>,
+    /// 从平台读回本人在其它客户端的阅读事实。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub read_sync: Option<crate::reading::ReadSyncCaps>,
     /// 表情包与远端收藏的独立能力。
     #[serde(default, skip_serializing_if = "crate::StickerCaps::is_empty")]
     pub stickers: crate::StickerCaps,
@@ -851,6 +860,9 @@ pub struct MessageCaps {
     /// 能补读单条消息。
     #[serde(default)]
     pub get: bool,
+    /// 能把合并转发或原生转发快照翻成 forwarded 内容块（只读）。
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub forwarded: bool,
 }
 
 /// 人员能力。
@@ -1072,6 +1084,14 @@ impl Capabilities {
     /// # Errors
     /// 组合不自洽时返回一句中文说明。
     pub fn check_consistent(&self, history: HistoryMode) -> Result<(), String> {
+        if self.messages.forwarded
+            && !(self.messages.list || self.messages.get || self.events.messages)
+        {
+            return Err("声明 messages.forwarded 时必须能读取或接收消息".into());
+        }
+        if let Some(problem) = crate::reading::capabilities_problem(self) {
+            return Err(problem.into());
+        }
         if self.resources.variants && !self.resources.read {
             return Err("声明 resources.variants 时必须能读取资源（resources.read）".into());
         }
@@ -1130,6 +1150,36 @@ impl Capabilities {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn forwarded_reading_is_optional_and_requires_a_message_source() {
+        use super::*;
+        let mut old: Capabilities =
+            serde_json::from_value(serde_json::json!({"messages":{"list":true,"get":true}}))
+                .unwrap();
+        assert!(!old.messages.forwarded);
+        assert!(
+            serde_json::to_value(&old).unwrap()["messages"]
+                .get("forwarded")
+                .is_none()
+        );
+        old.messages.forwarded = true;
+        assert!(old.check_consistent(HistoryMode::Server).is_ok());
+        assert_eq!(
+            serde_json::to_value(&old).unwrap()["messages"]["forwarded"],
+            true
+        );
+        old.messages.list = false;
+        old.messages.get = false;
+        assert!(
+            old.check_consistent(HistoryMode::None)
+                .unwrap_err()
+                .contains("forwarded")
+        );
+        old.events.messages = true;
+        old.events.conversations = true;
+        assert!(old.check_consistent(HistoryMode::None).is_ok());
+    }
+
     #[test]
     fn v40_rich_send_is_optional_needs_text_and_edit_and_skips_unknown_names() {
         use super::*;

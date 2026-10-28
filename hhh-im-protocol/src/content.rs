@@ -506,6 +506,7 @@ mod tests {
             },
             RichNode::Resource {
                 resource: Resource {
+                    voice: false,
                     key: "F1".into(),
                     kind: ResourceKind::Image,
                     mime: None,

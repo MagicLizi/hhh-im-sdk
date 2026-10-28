@@ -19,9 +19,11 @@
 
 pub mod attribution;
 pub mod content;
+pub mod forwarded;
 pub mod login_window;
 pub mod method;
 pub mod platform;
+pub mod reading;
 pub mod release;
 pub mod resources;
 pub use resources::{ResourceVariant, ResourceVariants};
@@ -72,6 +74,14 @@ pub const ENV_FLAG: &str = "HHH_IM_PROTOCOL";
 
 /// 宿主强制执行的预算（protocol-v1 §14）。超出的内容宿主按协议错误处理，不写进本地库。
 pub mod budget {
+    /// 一次阅读事实查询的消息上限。
+    pub const READ_MESSAGES_MAX: usize = 100;
+    /// 单页阅读名单的人员上限。
+    pub const READ_PEOPLE_MAX: usize = 100;
+    /// 平台精确阅读位置的十进制字符上限。
+    pub const READ_POSITION_MAX_BYTES: usize = 64;
+    /// 阅读名单不透明游标的字节上限。
+    pub const READ_CURSOR_MAX_BYTES: usize = 4096;
     /// 伙伴署名名字的 UTF-8 字节预算。
     pub const AGENT_NAME_MAX_BYTES: usize = 512;
     /// 伙伴静态缩略头像的完整 data URL 预算；不随每条消息携带大图。
@@ -82,6 +92,16 @@ pub mod budget {
     pub const EVENTS_PER_PUSH_MAX: usize = 500;
     /// 每条消息的内容块最多几个。
     pub const BLOCKS_PER_MESSAGE_MAX: usize = 200;
+    /// 转发记录最多嵌套几层。
+    pub const FORWARDED_DEPTH_MAX: usize = 8;
+    /// 一份转发记录当前可保存的消息数上限。
+    pub const FORWARDED_MESSAGES_PER_RECORD_MAX: usize = 200;
+    /// 一条外层消息里全部转发记录合计的快照数上限。
+    pub const FORWARDED_MESSAGES_MAX: usize = 500;
+    /// 一条外层消息里转发快照合计的内容块数上限。
+    pub const FORWARDED_BLOCKS_MAX: usize = 2000;
+    /// 一条外层消息里转发快照的 JSON 字节预算，给普通内容与信封保留余量。
+    pub const FORWARDED_BYTES_MAX: usize = 1024 * 1024;
     /// 单块文字最大字节数。
     pub const TEXT_BLOCK_MAX_BYTES: usize = 64 * 1024;
     /// 编号最大字节数（不含控制字符）。

@@ -224,7 +224,7 @@
 ```json
 {
   "conversations": { "list": true, "search": false, "members": false, "findDirect": false },
-  "messages":      { "list": false, "get": false },
+  "messages":      { "list": false, "get": false, "forwarded": false },
   "people":        { "get": true, "search": false },
   "send":          { "text": true, "mentions": false, "mentionAll": false, "image": true, "file": false, "lookup": false },
   "recall": false,
@@ -240,6 +240,8 @@
 - v12：`conversations.recentActivity` 为真时程序能回答 `conversations/recentActivity`（会话发现，§8）；`session.renew` 为真时程序能用存着的凭据续期（`session/renew`，§6.6）。
 - `people.contacts` 是可选好友目录能力，省略即不支持。读取独立于会话发现与聊天时间：包含没有消息、只有旧消息的既有好友，不创建关系、不读取消息、不列旧群。游标不透明，分页失败重试同一页；插件不能以跳过失败好友冒充完整页。宿主把资料恢复到列表，用户打开或近期消息发现后才启用正常消息读取。未声明的旧插件不会收到 `contacts/list`。
 - v15：`people.bots` 为真时程序能按编号读机器人与应用（`people/get` 的 `bots`），要先声明 `people.get`；不写时宿主把机器人一律记成“没有”、不为它们问程序。`people.batchMax`（1–2000）是一次 `people/get` 最多问几个，平台一次读一大批更省时写（如读一遍整份成员名单就认出一大批人）；不写是 100。
+
+- `messages.forwarded` 为真时，插件能把平台明确提供的合并转发或消息快照翻成 `forwarded` 块；默认 false，旧插件不受影响。声明它须同时能列消息、取单条或接收消息推送。它只表示读取，不表示能发送转发记录或读取任意原会话。
 - v35：`account.hostAvatar` 为真时程序收宿主交来的本机用户头像（`account/avatar`，§6.8），拿去设置本人在这家 IM 里的头像；不写时宿主不交，线上不出现 `account`。
 
 - v32：`perf` 为真时程序能自报内部耗时（§11.6）；不写时宿主不发任何 `perf/*`。
@@ -272,7 +274,7 @@
 | `list`（v13） | `caption`、`rows: [{id, title, detail, tag, icon: person/device, actions: [{id, label, danger}]}]`（至多 200 行，每行至多 4 颗按钮）、`select: {min, max, confirmLabel}`（多选）、`empty`（没有行时写什么） | 一列东西：每行可带按钮，或多选后确认 |
 | `confirm`（v13） | `caption`、`person: {name, detail}`、`sections: [{title, text}]`、`text`、`confirmLabel`、`danger`（确认按钮用危险色） | 确认或说明：核对是谁、不可撤销的确认、几段说明 |
 
-v13 起每一步都可以带 `links: [{id, label}]`（另一种做法，画成按钮下方居中的文字按钮，至多 8 个）；`input`、`showText`、`list`、`confirm` 还可以带 `cancelLabel`（左边按钮的文字）、`cancelChoice`（左边按钮代表一个选择，如批准框的“拒绝”，不等于关掉）、`noCancel`（没有左边的按钮：这一步不能跳过，点遮罩、按 Esc 都不关）；`input` 另可带 `caption`（字段上面的一句说明）与 `submitLabel`（提交按钮的文字）。用户在一步里做了选择——点了 `links`、行尾的按钮、多选或确认一步的确认、`showText` 的确认、`cancelChoice`——宿主发 `step/choose {flowId, choice, row?, selected?}`（宿主→程序通知，同 `login/submit`、`login/cancel`；登录与 §6.7 的操作共用）：`choice` 是 `confirm`、`links` 或行尾按钮的 `id`、或 `cancelChoice`；`row` 是哪一行的按钮，`selected` 是多选确认时选中的行。程序之后照常推下一步或结束。每段文字（说明、标题、细节、按钮文字、小标题与说明）至多 200 字，超出 §14 上限、编号空着或重复的一步宿主不显示，按这次流程失败处理。
+v13 起每一步都可以带 `links: [{id, label}]`（另一种做法，宿主画成底部一行左边的文字按钮、几种上下排，这一步的按钮在右边，至多 8 个）；`input`、`showText`、`list`、`confirm` 还可以带 `cancelLabel`（左边按钮的文字）、`cancelChoice`（左边按钮代表一个选择，如批准框的“拒绝”，不等于关掉）、`noCancel`（没有左边的按钮：这一步不能跳过，点遮罩、按 Esc 都不关）；`input` 另可带 `caption`（字段上面的一句说明）与 `submitLabel`（提交按钮的文字）。用户在一步里做了选择——点了 `links`、行尾的按钮、多选或确认一步的确认、`showText` 的确认、`cancelChoice`——宿主发 `step/choose {flowId, choice, row?, selected?}`（宿主→程序通知，同 `login/submit`、`login/cancel`；登录与 §6.7 的操作共用）：`choice` 是 `confirm`、`links` 或行尾按钮的 `id`、或 `cancelChoice`；`row` 是哪一行的按钮，`selected` 是多选确认时选中的行。程序之后照常推下一步或结束。每段文字（说明、标题、细节、按钮文字、小标题与说明）至多 200 字，超出 §14 上限、编号空着或重复的一步宿主不显示，按这次流程失败处理。
 
 除 `message` 外，每种步骤都可以带可选的 `note: { "text", "tone" }`（`tone` 是 `info` / `warn`，与 `message` 同色调）：程序想在这一步提醒用户什么（例如“扫码后在手机上勾选同步最近的消息”），就在这一步带上，宿主把它画在这一步内容下面、按钮上面；不带就没有。宿主不解析提示的含义，文字原样显示、不支持格式；空文字或超过 §14 上限的提示不显示（这一步照常），不认识的色调按 `info`。旧宿主忽略这个字段。
 
@@ -471,17 +473,28 @@ v13 起每一步都可以带 `links: [{id, label}]`（另一种做法，画成�
 | `rich` | `root` | 格式正文，即 mdast 的一个子集，节点见 §7.6 |
 | `markdown` | `text` | 平台明确标为 Markdown 的原文，由宿主解析 |
 | `card` | 结构见附录 B | 卡片：标题、色调和若干块 |
+| `forwarded` | `record`，见下文 | 合并转发的只读快照 |
 | `unsupported` | `kind`、`label`? | 暂时翻译不了的内容。出现它时，整条消息要标 `incomplete: true` |
 
 宿主遇到不认识的 `type` 时，按 `unsupported` 显示，消息照常保存。
 
 消息身份完整时，无法解析的内容块也在原位置转成 `unsupported`，同条其余内容保留，并标 `incomplete: true`；未撤回但正文为空或格式不完整时留下通用消息占位。实时推送、消息历史、补读与发送/编辑结果共用这一接收边界。`raw` 仍只由插件按 §7.4 提供，不从异常 JSON 自动构造。
 
-**Resource**：`{ "key", "kind": "image|file|sticker", "mime"?, "bytes"?, "durationMs"? }`
+**Resource**：`{ "key", "kind": "image|file|sticker", "mime"?, "bytes"?, "durationMs"?, "voice"?, "cover"? }`
 
 - `key` 只在它所在的那条消息里有意义。宿主读资源时，总会带上会话编号和消息编号。
-- v1 里语音、视频、音频都按 `file` 给。`name` 要写成用户看得懂的文件名，例如“语音 0:12.wav”。`mime` 和 `durationMs` 宿主先存着，等 HHH 有了音视频专用的内容块再用上。
+- 语音、视频、音频都按 `file` 给，复用 `capabilities.resources.read` 和 `resources/read`，没有单独的播放能力开关。`name` 是用户可理解的文件名；`mime` 必须匹配交出的字节，`durationMs` 是实际已知的正数毫秒，未知时省略。
+- 平台明确标记的语音消息另写 `voice: true`；普通音频文件省略或写 `false`。宿主根据此字段显示语音条，不能按文件名、时长或平台编号猜语音；普通音频按 MIME 或扩展名使用音频文件播放器。省略时兼容旧插件；旧宿主可忽略此字段继续按文件处理。
+- 宿主只在用户点击后取资源播放。浏览器不支持的编码仍可保存或回原平台处理；插件不把未经转换的私有编码标成 WAV，也不声明未经实现的资源能力。
 - **程序必须交出通用格式的数据。** 平台私有的编码（例如微信语音的 SILK），由程序转成 WAV、MP3、OGG 这类通用格式。
+
+### 7.5a 合并转发的只读快照
+
+`forwarded` 块的 `record` 为 `{title, messages, totalCount?, incomplete?}`。`messages` 保持平台给出的顺序，不按时间重排；每条为 `{id?, sender?, createdAtMs?, content, incomplete?}`，`content` 可再次含 `forwarded`。`sender` 是 `{id?, idType?, kind?, name?, avatar?}`：名字与头像取转发时的平台快照，不用当前群成员覆盖；未知的编号、时间、总数省略，不能用外层信息或当前可读条数冒充。
+
+这些内部编号只标识快照，不是当前会话里的消息、人员、话题或未读事实；宿主不为它们创建发送、编辑、撤回入口。`avatar` 仍是 `avatars/read` 的不透明键。资源键须在整个外层消息中足以定位对应资源，宿主始终把外层会话和消息编号交给 `resources/read` / `resources/describe`，由插件在自己的快照里定位并按同一账号的权限读取，不因知道内部编号就绕开原平台权限。
+
+平台未提供、明确拒绝或插件尚不能翻译的部分保留说明；记录、内部消息与外层消息的 `incomplete` 逐层传播，不能把读取失败显示成空记录。内部未知块保留占位及相邻消息。宿主在反序列化之前经 `forwarded::sanitize_content` 核对树形预算：深度 8、每条记录 200 条消息、整棵树 500 条消息及 2000 个块，合计 1 MiB；超限截断或留下占位，并明确标为部分内容。普通消息与 JSON-RPC 帧仍受 §14 的预算约束。
 
 ### 7.6 格式正文的节点（v1 固定下来）
 
@@ -529,9 +542,30 @@ v13 起每一步都可以带 `links: [{id, label}]`（另一种做法，画成�
 - 同一次读取逐条等额度；宿主沿用原读取单元的优先级、预付额度和取消状态，等待额度不阻塞其他协议消息，也不套插件请求宿主的普通 30 秒时限。读取结束或取消后凭据立即失效。SDK 插件在唯一读取出口用 `runtime::metering::read_request().await?`，没有 `_meta.readPermit` 的旧宿主自动退回计数模式。
 - **许可交付回执**（可选）：支持回执的程序发送 `requests/acquire {permit, receipt: true}`。宿主可返回 `{granted: true, receipt: "不透明回执编号"}`；程序收到后，在开始这条平台读取前立即发通知 `requests/received {receipt: "该编号"}`，不等 HTTP 完成。编号必须是 1–128 字节的字符串；无效时停止读取。宿主同一平台最多保留一份未确认交付的许可，收到回执后从此时刻重新计算这笔读取的秒、分钟窗口，不能重复记账。原调用结束、取消或断连时释放其回执；迟到、重复或未知回执不影响其它调用。旧插件不传 `receipt: true` 时宿主不要求回执；旧宿主回复中省略 `receipt` 时新 SDK 沿用明确许可模式。完整的延迟交付保护需要双方支持回执，协议主版本不变。
 - **这次向平台发了几个请求**（v14，可选）：上表每个方法的结果对象都可以多带 `"platformRequests": <正整数>`。没有协商发送前申请额度时，宿主每调一次先记一次平台读取，多出的在结果返回后记进这个平台的读取额度（一次调用至多按 64 个记），之后的读取据此等；不写就是 1。已逐条放行的调用不再按这个字段重复扣额度。
-- **读取不能有副作用**：不能借读取在平台上标已读，也不能改变在线状态。已读未读只在 HHH 本地计算。
+- **读取不能有副作用**：不能借读取在平台上标已读，也不能改变在线状态。本人查看后的写回只走独立的 `reading/mark`；外部阅读事实按下面的可选能力单向并入本地未读计算。
 - Emoji 的字段同 hhh-im 的 `EmojiInfo`，只是图片地址换成 `emoji/image` 用的编号。v31：Emoji 可带 `inText`（布尔，默认真），假时这个表情不能按 `emoji.textTemplate` 写进文字（只能点成回应），输入框的表情面板不列它；与 `panel`（能不能点成回应）互相独立。用 `{name}` 写法而表情没有名字的也写不进文字。
 - `categories` 的每一项是 `{id, name, icon?}`。v31：`icon` 指定分类标签画宿主图标库里的哪个图标，取 `smileys`、`nature`、`food`、`travel`、`activities`、`objects`、`symbols`、`flags`、`custom` 之一（协议包 `types::EMOJI_CATEGORY_ICONS`）；没写或不在表里时宿主画圆，分类编号本身不决定图标。
+
+### 8.1 阅读能力（可选）
+
+三项能力分别声明，省略任一项就不调用对应方法。类型正本是 SDK 的 `reading` 模块；账号由当前插件会话限定，`scope: {conversationId, threadRoot?}` 的 `threadRoot` 是根消息编号，会话和话题的阅读位置互不推进。
+
+| 声明 | 字段 | 方法 |
+|---|---|---|
+| `capabilities.receipts` | `conversations` / `threads`；`readers` / `unreaders` 表示能否列名单；可选 `maxAgeSecs` 限制本人消息时间窗口 | `reading/receipts`、`reading/people` |
+| `capabilities.markRead` | `conversations` / `threads`；正数 `perMinute` 是账号写额度，与读取额度分开 | `reading/mark` |
+| `capabilities.readSync` | `conversations` / `threads`；`watermark` / `individual` 至少一项 | `reading/sync`、协商后的 `reading/changed` |
+
+- `reading/receipts({scope,messageIds}) → {items:[{messageId,readCount?,totalCount?,readers?,unreaders?}]}`：只读当前可见的本人消息。缺少人数或未返回该消息表示未知；完整 `totalCount` 不包含自己，只有平台给出完整分母才计算比例。名单可用性不能超出声明，未读名单不能用群成员减已读名单生成。
+- `reading/people({scope,messageId,read,cursor?,limit}) → {people,nextCursor?,complete}`：`read=true` 为已读名单，false 为未读。用户点击打开后才读；关闭取消。`complete=false` 且无游标表示只能给部分名单，不代表名单完整。游标必须前进，完整结果不能还有下一页。
+- `reading/sync({scope,messageIds}) → {scope,through?,readMessageIds?}`：`through` 是连续水位；`readMessageIds` 仅包含明确已读的请求内编号。逐条 true 不推出其它消息已读，缺字段、无权限和失败都不能补成 false。纯水位查询允许空 `messageIds`。
+- 消息的可选 `readPosition` 与本范围 `through` 使用同一序数空间，是最多 64 字节、无前导零的非负十进制字符串（零写 `"0"`）。插件负责把平台位置精确映射，禁止浮点数、毫秒截断或用当前时间替代。宿主按长度和字典序比较；保留既有位置，按账号/会话/话题单调并入自己的消息库，平台主动标未读不倒灌。
+- `reading/mark({scope,messageId,position?}) → {state:"applied"|"unknown"}` 是**写方法**，仅来自本人前台实际看见的确切边界或显式标已读动作。后台、AI、预览、普通读取与收到回读均不能触发；不能在执行时改取“最新消息”。超时或断连后不能确定的返回 `unknown`，宿主只读对账，不自动重放。
+- `initialize` 可带 `readingEvents:true`。只有宿主明确协商且插件声明 `readSync` 时，才能发送 `reading/changed`，参数与回读结果相同。旧宿主不接收该新通知；SDK `Host` 负责挡住未协商通知。断线恢复仍须按声明补查。
+
+集中预算见 `budget::{READ_MESSAGES_MAX,READ_PEOPLE_MAX,READ_CURSOR_MAX_BYTES,READ_POSITION_MAX_BYTES}`：单批消息最多 100，名单每页 1–100 人，游标最多 4096 字节，整条响应仍遵守通用字节预算。越界、跨范围、重复编号或未声明事实按协议错误处理；读取失败不改变既有已读事实。
+
+自检：`hhh-im-check <清单> --live --read-only --reading-chat <会话编号>` 只读检查；只有另外显式指定 `--allow-mark-read <确切消息编号>` 且移除 `--read-only` 才允许写这一条。未登录、无样本、未授权的跳过不能当成真实验收通过；话题还须从产品入口验证。
 
 ## 9. 资源
 
@@ -756,6 +790,7 @@ JSON-RPC 的 `error.code` 按下表取值；`error.data` 里写明错误分类�
 | 每批事件 | 500 个 |
 | 每页结果 | 请求里给的 `limit` |
 | 每条消息的内容块 | 200 个 |
+| 一条外层消息内的转发树 | 深度 8；每条记录 200 条、整树 500 条消息、2000 个块；合计 1 MiB。超限保留可读部分并标不完整 |
 | 格式正文、卡片 | 沿用 hhh-im 现有的节点数、深度预算 |
 | 单块文字 | 64 KiB |
 | `agentAttribution.name` | 512 个 UTF-8 字节，无控制字符、非空白 |

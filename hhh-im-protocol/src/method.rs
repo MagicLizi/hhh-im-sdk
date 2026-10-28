@@ -15,6 +15,17 @@ use crate::types::{
 /// 协议里的方法名。字符串形式见 [`Method::as_str`]。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
+    /// 批量查询他人阅读摘要。
+    ReadingReceipts,
+    /// 点击后分页查询阅读名单。
+    ReadingPeople,
+    /// 只读查询本账号的阅读状态。
+    ReadingSync,
+    /// 显式写回本人阅读边界。
+    ReadingMark,
+    /// 协商后发送的本账号阅读通知。
+    ReadingChanged,
+
     /// 分页读取已有联系人对应的私聊资料（参数沿用 `ConversationsListParams`，结果 `Page<Conversation>`）。
     ContactsList,
     // —— 生命周期（宿主→插件）——
@@ -170,6 +181,11 @@ impl Method {
     /// 线上方法名字符串。
     pub fn as_str(self) -> &'static str {
         match self {
+            Method::ReadingReceipts => "reading/receipts",
+            Method::ReadingPeople => "reading/people",
+            Method::ReadingSync => "reading/sync",
+            Method::ReadingMark => "reading/mark",
+            Method::ReadingChanged => "reading/changed",
             Method::Initialize => "initialize",
             Method::SessionOpen => "session/open",
             Method::SessionLogout => "session/logout",
@@ -255,6 +271,11 @@ impl Method {
     pub fn from_name(name: &str) -> Option<Method> {
         // 全集逐一比对；集合小、调用不频繁，直观优先。
         const ALL: &[Method] = &[
+            Method::ReadingReceipts,
+            Method::ReadingPeople,
+            Method::ReadingSync,
+            Method::ReadingMark,
+            Method::ReadingChanged,
             Method::Initialize,
             Method::SessionOpen,
             Method::SessionLogout,
@@ -334,6 +355,9 @@ impl Method {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitializeParams {
+    /// 宿主能接收 reading/changed；省略时插件不得发这个通知。
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reading_events: bool,
     /// 宿主支持的协议主版本。
     pub protocol_versions: Vec<u32>,
     /// 宿主信息。
@@ -820,7 +844,7 @@ pub enum LoginStep {
         /// 插件声明的提示（契约 provider-protocol v8）：画在这一步内容下面、按钮上面；不给就没有。
         #[serde(default, skip_serializing_if = "Option::is_none")]
         note: Option<LoginNote>,
-        /// 另一种做法（v13）：按钮下方居中的文字按钮。
+        /// 另一种做法（v13）：文字按钮，宿主画在底部一行的左边（v46）。
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         links: Vec<StepLink>,
     },
@@ -1003,7 +1027,7 @@ pub enum LoginStep {
     },
 }
 
-/// 一步里“另一种做法”（v13）：按钮下方居中的文字按钮，点了宿主发 `step/choose {choice: id}`。
+/// 一步里“另一种做法”（v13）：文字按钮，宿主画在底部一行的左边（v46），点了宿主发 `step/choose {choice: id}`。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StepLink {

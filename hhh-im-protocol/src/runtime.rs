@@ -272,6 +272,9 @@ fn receive<P: Plugin>(
     let key = id.to_string();
     let permit = params.pointer("/_meta/readPermit").cloned();
     let initialize = method == crate::Method::Initialize.as_str();
+    if initialize {
+        host.set_reading_events(params.get("readingEvents").and_then(Value::as_bool) == Some(true));
+    }
     // 剖析开着时才留方法名（记排队与处理耗时用）；关着时只多这一次原子读取。
     let probed = host.perf().active().then(|| {
         (

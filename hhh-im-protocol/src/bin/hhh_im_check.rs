@@ -16,6 +16,8 @@ use hhh_im_protocol::platform::{Capabilities, HistoryMode, Manifest, PlatformDes
 use hhh_im_protocol::transport::{Connection, Incoming, StdioChild};
 use serde_json::{Value, json};
 
+#[path = "hhh_im_check/reading.rs"]
+mod reading;
 #[path = "hhh_im_check/rich_send.rs"]
 mod rich_send;
 
@@ -76,12 +78,16 @@ struct Args {
     allow_send: Option<String>,
     /// 要开始一次登录看第一步的登录方式编号（v36）。
     login: Option<String>,
+    /// 阅读能力的只读检查会话，不隐含发送或写已读授权。
+    reading_chat: Option<String>,
+    /// 仅允许向平台写回这一条确切消息。
+    allow_mark_read: Option<String>,
 }
 
 fn parse_args() -> Result<Args, String> {
     let mut a = std::env::args().skip(1);
     let manifest = a.next().ok_or(
-        "用法：hhh-im-check <清单路径> [--mock] [--live --read-only] [--allow-send <会话编号>] [--login <登录方式编号>]",
+        "用法：hhh-im-check <清单路径> [--mock] [--live --read-only] [--allow-send <会话编号>] [--login <登录方式编号>] [--reading-chat <会话编号>] [--allow-mark-read <确切消息编号>]",
     )?;
     let mut args = Args {
         manifest: PathBuf::from(manifest),
@@ -90,6 +96,8 @@ fn parse_args() -> Result<Args, String> {
         read_only: false,
         allow_send: None,
         login: None,
+        reading_chat: None,
+        allow_mark_read: None,
     };
     while let Some(flag) = a.next() {
         match flag.as_str() {
@@ -102,8 +110,18 @@ fn parse_args() -> Result<Args, String> {
             "--login" => {
                 args.login = Some(a.next().ok_or("--login 后要带登录方式编号")?);
             }
+            "--reading-chat" => {
+                args.reading_chat = Some(a.next().ok_or("--reading-chat 后要带会话编号")?);
+            }
+            "--allow-mark-read" => {
+                args.allow_mark_read =
+                    Some(a.next().ok_or("--allow-mark-read 后要带确切消息编号")?);
+            }
             other => return Err(format!("不认识的参数：{other}")),
         }
+    }
+    if args.allow_mark_read.is_some() && (args.read_only || args.reading_chat.is_none()) {
+        return Err("写已读须同时指定 --reading-chat，且不能与 --read-only 同用。".into());
     }
     Ok(args)
 }
@@ -257,6 +275,7 @@ async fn run(args: Args) -> i32 {
             "protocolVersions": [1],
             "host": { "name": "hhh-im-check", "version": "0.1.0" },
             "locale": "zh-CN",
+            "readingEvents": true,
             "tempDir": temp.to_string_lossy(),
             "network": { "proxy": null }
         }),
@@ -395,6 +414,18 @@ async fn run(args: Args) -> i32 {
     check_v13_calls(&conn, &mut report, &init, online).await;
     check_v31_calls(&conn, &mut report, &platform, &caps, online).await;
     check_stickers(&conn, &mut report, &caps, online).await;
+    reading::check(
+        &conn,
+        &mut report,
+        &caps,
+        open.as_ref()
+            .ok()
+            .filter(|_| online)
+            .and_then(|v| v["account"]["id"].as_str()),
+        args.reading_chat.as_deref(),
+        args.allow_mark_read.as_deref(),
+    )
+    .await;
     if caps.perf {
         check_perf(&conn, &mut report, &collected).await;
     }

@@ -151,6 +151,10 @@ pub struct Resource {
     /// 语音/视频时长（毫秒）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u64>,
+    /// 平台明确标记的语音消息；只对 file 有意义，普通音频不填。
+    /// 宿主不得根据文件名、时长或平台编号推断语音身份。
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub voice: bool,
     /// 视频的封面（provider-protocol v9）：同一条消息里一张图片的资源键，宿主按 `resources/read`
     /// （`kind: "image"`）读它；只对视频有意义，旧插件不写。
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -188,7 +192,7 @@ pub struct ResourceCover {
 }
 
 /// 一条消息里的一个内容块（protocol-v1 §7.5），`type` 分辨。不认识的 `type` 宿主按 `unsupported` 显示。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -248,6 +252,11 @@ pub enum Block {
         /// 卡片结构（标题、色调、块）。
         card: serde_json::Value,
     },
+    /// 合并转发的只读快照；资源键仍属于外层消息，不把内部记录当成会话消息。
+    Forwarded {
+        /// 标题、消息顺序与原发送者的显示快照。
+        record: Box<ForwardedRecord>,
+    },
     /// 暂时翻译不了的内容（出现它时整条消息要标 `incomplete`）。
     Unsupported {
         /// 平台内容种类。
@@ -256,6 +265,65 @@ pub enum Block {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         label: Option<String>,
     },
+}
+
+/// 转发记录中的发送者显示快照，不要求原会话或当前成员身份可访问。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ForwardedSender {
+    /// 可知的原发送者编号；没有时不伪造。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// 编号种类。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id_type: Option<String>,
+    /// 平台给出的发送者种类。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<SenderKind>,
+    /// 转发时保留的名字，不用当前群成员名字覆盖。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// 可经 avatars/read 读取的头像键；没有时显示名字占位。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub avatar: Option<String>,
+}
+
+/// 转发记录内部的一条快照，没有当前会话的操作、未读或话题语义。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForwardedMessage {
+    /// 原消息编号，仅供识别快照，不能直接拿它请求 messages/get。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// 原发送者的显示快照。
+    #[serde(default)]
+    pub sender: ForwardedSender,
+    /// 可知的原发送时间（毫秒）；未知时不拿外层时间代替。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at_ms: Option<i64>,
+    /// 按顺序排列的内容；资源键由插件在整个外层消息内唯一化。
+    pub content: Vec<Block>,
+    /// 这条快照是否有无法读取的部分。
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub incomplete: bool,
+}
+
+/// 合并转发的聊天记录。完整性、数量与树形预算见 forwarded 模块。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ForwardedRecord {
+    /// 平台提供的标题；空标题由界面显示“聊天记录”。
+    #[serde(default)]
+    pub title: String,
+    /// 转发时的原始顺序，不按时间重排。
+    #[serde(default)]
+    pub messages: Vec<ForwardedMessage>,
+    /// 平台确认的总数；未知时省略，不能以当前可读条数冒充。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_count: Option<u32>,
+    /// 部分内容未提供、不可读或超过预算。
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub incomplete: bool,
 }
 
 /// 话题根消息上的话题现状。
@@ -350,6 +418,9 @@ pub struct Reaction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Message {
+    /// 同一会话／话题内的精确阅读序数，规范十进制字符串；未知时省略。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub read_position: Option<String>,
     /// 伙伴代发来源的显示快照；无效的附注不影响正文与同批消息。
     #[serde(
         default,
@@ -721,6 +792,7 @@ mod tests {
     #[test]
     fn a_message_omits_empty_optionals() {
         let m = Message {
+            read_position: None,
             agent_attribution: None,
             id: "m1".into(),
             conversation_id: "c1".into(),
@@ -754,6 +826,7 @@ mod tests {
     fn send_outcome_is_tagged_by_state() {
         let acc = SendOutcome::Accepted {
             message: Box::new(Message {
+                read_position: None,
                 agent_attribution: None,
                 id: "m".into(),
                 conversation_id: "c".into(),

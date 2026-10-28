@@ -2,7 +2,7 @@
 //! 搅在一起；插件发给宿主的请求（`credential/save`、`events/push`…）按编号等回复。
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -45,6 +45,7 @@ struct Inner {
     waiting: Mutex<HashMap<String, oneshot::Sender<Result<Value, RpcError>>>>,
     /// 性能自报（契约 provider-protocol v32）：宿主剖析开着时记。
     perf: Arc<super::perf::Recorder>,
+    reading_events: AtomicBool,
 }
 
 /// 宿主那一头：回请求、发通知、发请求并等回复。可以随意复制，复制出来的是同一个。
@@ -84,6 +85,7 @@ impl Host {
                 next: AtomicU64::new(1),
                 waiting: Mutex::new(HashMap::new()),
                 perf: Arc::default(),
+                reading_events: AtomicBool::new(false),
             })),
             Writes(rx),
         )
@@ -115,10 +117,24 @@ impl Host {
 
     /// 发一个通知（不等回复），如 `login/step`、`status`、`session/expired`。
     pub fn notify(&self, method: &str, params: impl Serialize) {
+        if method == crate::Method::ReadingChanged.as_str()
+            && !self.0.reading_events.load(Ordering::Relaxed)
+        {
+            return;
+        }
         match serde_json::to_value(params) {
             Ok(params) => self.send(RpcMessage::notification(method, params)),
             Err(error) => tracing::error!(method, %error, "通知的参数写不出来，没发"),
         }
+    }
+
+    /// 宿主明确协商后才发送新阅读通知，旧宿主仍可正常收消息。
+    pub fn reading_changed(&self, state: &crate::reading::ReadState) {
+        self.notify(crate::Method::ReadingChanged.as_str(), state);
+    }
+
+    pub(super) fn set_reading_events(&self, enabled: bool) {
+        self.0.reading_events.store(enabled, Ordering::Relaxed);
     }
 
     /// 发一个请求给宿主，等它回复（至多 30 秒），如 `credential/save`、`events/push`。
