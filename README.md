@@ -23,8 +23,8 @@
 
 ```toml
 [dependencies]
-hhh-im-protocol = { git = "https://github.com/MagicLizi/hhh-im-sdk", tag = "v0.17.0", features = ["runtime"] }
-hhh-im-net = { git = "https://github.com/MagicLizi/hhh-im-sdk", tag = "v0.17.0" }
+hhh-im-protocol = { git = "https://github.com/MagicLizi/hhh-im-sdk", tag = "v0.18.0", features = ["runtime"] }
+hhh-im-net = { git = "https://github.com/MagicLizi/hhh-im-sdk", tag = "v0.18.0" }
 ```
 
 联网一律用 `hhh-im-net`，不要直接依赖 reqwest：电脑上它就是 reqwest（`hhh_im_net::Client` 等原样导出），建客户端从
@@ -45,7 +45,7 @@ hhh-im-net = { git = "https://github.com/MagicLizi/hhh-im-sdk", tag = "v0.17.0" 
 装两个工具：
 
 ```sh
-cargo install --git https://github.com/MagicLizi/hhh-im-sdk --tag v0.17.0 hhh-im-protocol --features transport,package
+cargo install --git https://github.com/MagicLizi/hhh-im-sdk --tag v0.18.0 hhh-im-protocol --features transport,package
 ```
 
 - 自检：`hhh-im-check <插件文件夹>/hhh-im-provider.json`

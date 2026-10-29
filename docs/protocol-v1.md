@@ -238,6 +238,7 @@
 ```
 
 - v12：`conversations.recentActivity` 为真时程序能回答 `conversations/recentActivity`（会话发现，§8）；`session.renew` 为真时程序能用存着的凭据续期（`session/renew`，§6.6）。
+- `people.contactActions` 是可选群成员名片能力，缺省关闭。请求绑定来源群与用户编号，插件核验双方仍是群成员；不能添加本人。`contacts/profile` 只读真实关系，不以本机记录缺失、查询错误或不完整分页推断非好友。`contact` 必须给出非空私聊编号且 `canAdd=false`；其他状态不带私聊编号，本人也不可添加。`contacts/add` 仅由用户明确操作触发，不自动重试；重复添加须复用同一私聊。写入结果不确定时先重新查询关系。名片与添加不会发送消息。类型及校验在 `hhh-im-protocol/src/contacts.rs`。
 - `people.contacts` 是可选好友目录能力，省略即不支持。读取独立于会话发现与聊天时间：包含没有消息、只有旧消息的既有好友，不创建关系、不读取消息、不列旧群。游标不透明，分页失败重试同一页；插件不能以跳过失败好友冒充完整页。宿主把资料恢复到列表，用户打开或近期消息发现后才启用正常消息读取。未声明的旧插件不会收到 `contacts/list`。
 - v15：`people.bots` 为真时程序能按编号读机器人与应用（`people/get` 的 `bots`），要先声明 `people.get`；不写时宿主把机器人一律记成“没有”、不为它们问程序。`people.batchMax`（1–2000）是一次 `people/get` 最多问几个，平台一次读一大批更省时写（如读一遍整份成员名单就认出一大批人）；不写是 100。
 
@@ -532,6 +533,8 @@ v13 起每一步都可以带 `links: [{id, label}]`（另一种做法，宿主�
 
 | 方法 | 参数 | 结果 | 需要的能力 |
 |---|---|---|---|
+| `contacts/profile` | `conversationId`、`userId` | `{relationship: "selfAccount" | "contact" | "notContact", conversationId?, canAdd: boolean}` | `people.contactActions` |
+| `contacts/add` | 同上；用户明确点击添加后才发送 | 同上；成功必须是 `contact`，提供已有或新建私聊编号 | `people.contactActions` |
 | `contacts/list` | `limit`（1–100）、`cursor`? | `{items: Conversation[], next?}`；只含当前账号已有好友对应的私聊，必须有非空 `peer`，不能是本人 | `people.contacts` |
 | `conversations/list` | `limit`（1–100）、`cursor`? | `{items: Conversation[], next?}` | `conversations.list` |
 | `conversations/get` | `conversationId` | `Conversation` | 必需 |

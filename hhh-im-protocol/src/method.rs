@@ -28,6 +28,10 @@ pub enum Method {
 
     /// 分页读取已有联系人对应的私聊资料（参数沿用 `ConversationsListParams`，结果 `Page<Conversation>`）。
     ContactsList,
+    /// Read the authoritative relationship for a group member.
+    ContactsProfile,
+    /// Explicitly add a group member as a contact.
+    ContactsAdd,
     // —— 生命周期（宿主→插件）——
     /// 协商版本，取回平台说明与能力。
     Initialize,
@@ -215,6 +219,8 @@ impl Method {
             Method::AccountAvatar => "account/avatar",
             Method::ConversationsList => "conversations/list",
             Method::ContactsList => "contacts/list",
+            Method::ContactsProfile => "contacts/profile",
+            Method::ContactsAdd => "contacts/add",
             Method::ConversationsGet => "conversations/get",
             Method::ConversationsSearch => "conversations/search",
             Method::ConversationsMembers => "conversations/members",
@@ -305,6 +311,8 @@ impl Method {
             Method::AccountAvatar,
             Method::ConversationsList,
             Method::ContactsList,
+            Method::ContactsProfile,
+            Method::ContactsAdd,
             Method::ConversationsGet,
             Method::ConversationsSearch,
             Method::ConversationsMembers,

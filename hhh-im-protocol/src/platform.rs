@@ -869,6 +869,9 @@ pub struct MessageCaps {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PeopleCaps {
+    /// Explicit group-member contact lookup and addition; omitted for legacy plugins.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub contact_actions: bool,
     /// 能分页列出已建立关系的联系人及其私聊资料，不依赖近期消息。
     /// 宿主按 `contacts/list` 读取；未声明时不发请求。
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -1427,6 +1430,7 @@ mod tests {
         let on = serde_json::to_value(caps.people).unwrap();
         assert_eq!(on["bots"], true);
         let off = serde_json::to_value(PeopleCaps {
+            contact_actions: false,
             get: true,
             search: false,
             bots: false,
