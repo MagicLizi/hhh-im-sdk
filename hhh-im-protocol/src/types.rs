@@ -252,6 +252,27 @@ pub enum Block {
         /// 卡片结构（标题、色调、块）。
         card: serde_json::Value,
     },
+    /// 一个原文链接的分享卡片；整张卡片打开 url，封面不作为独立图片打开。
+    LinkCard {
+        /// HTTP/HTTPS 原文地址。
+        url: String,
+        /// 纯文本标题；没有时宿主显示地址的主机名。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
+        /// 纯文本摘要。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        /// 来源显示名。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        /// 属于这条消息的图片资源；沿用 resources/read，缺失不影响链接。
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "crate::link_card::thumbnail"
+        )]
+        thumbnail: Option<Resource>,
+    },
     /// 合并转发的只读快照；资源键仍属于外层消息，不把内部记录当成会话消息。
     Forwarded {
         /// 标题、消息顺序与原发送者的显示快照。

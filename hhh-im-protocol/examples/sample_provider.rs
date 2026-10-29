@@ -620,6 +620,9 @@ fn handle(
             Some("wave") => Ok(chunk(params, WAVE_PNG)),
             _ => Err(error("notFound", "示例 IM 没有这个表情的图。")),
         },
+        "resources/read" if params["key"] == "link-cover-missing" => {
+            Err(error("notFound", "示例封面已无法读取"))
+        }
         "resources/read" => Ok(chunk(params, SMILE_PNG)),
         "messages/send" => {
             if std::path::Path::new("deny-send").exists() {
@@ -2046,7 +2049,7 @@ fn demo_messages() -> Vec<Value> {
     );
     root["thread"] = json!({ "id": "t-1", "inThread": false,
         "activity": { "latestReplyId": "m-4", "latestReplyAtMs": base + 40_000, "replyCount": 1 } });
-    vec![
+    let mut messages = vec![
         root,
         message("m-2", "c-team", "me", base + 10_000, "这条可以编辑", true),
         message(
@@ -2083,7 +2086,25 @@ fn demo_messages() -> Vec<Value> {
             "这周读《小王子》，周五晚上聊",
             false,
         ),
-    ]
+    ];
+    // 显式的协议示例，只有任务目录放入标记才出现，不改变既有示例验收的数据。
+    if std::path::Path::new("link-cards").exists()
+        || std::env::args().any(|arg| arg == "--link-cards")
+    {
+        for (i, block) in [
+            json!({"type":"linkCard","url":"https://example.com/article","title":"从一张卡片打开原文","description":"标题、封面和空白处都打开同一篇文章。","source":"示例来源","thumbnail":{"key":"link-cover","kind":"image"}}),
+            json!({"type":"linkCard","url":"https://example.com/no-cover","title":"没有封面的文章","description":"文字和链接不依赖封面。"}),
+            json!({"type":"linkCard","url":"https://example.com/missing-cover","title":"封面无法读取仍能打开原文","thumbnail":{"key":"link-cover-missing","kind":"image"}}),
+            json!({"type":"linkCard","url":"https://example.com/long","title":"比较长的文章标题在窄窗口中最多显示两行，仍然可以通过整张卡片打开完整的原文进行阅读","description":"摘要在卡片中最多显示三行，不会把会话挤出水平方向的滚动条。".repeat(4)}),
+            json!({"type":"linkCard","url":"https://example.com/only-url"}),
+        ].into_iter().enumerate() {
+            let mut m = message(&format!("link-{i}"), "c-team", "u-amy", base + 60_000 + i as i64, "", false);
+            m["content"] = json!([block]);
+            m.as_object_mut().unwrap().remove("raw");
+            messages.push(m);
+        }
+    }
+    messages
 }
 
 /// 第一条消息上的表情回应：目录里的“赞”与目录外的 `wave`（宿主按 `guess` 来要图）。

@@ -1327,9 +1327,14 @@ fn find_resource(events: &[Value]) -> Option<(String, String, String, String)> {
                 let conv = m["conversationId"].as_str()?;
                 let mid = m["id"].as_str()?;
                 for b in m["content"].as_array()? {
-                    if b["type"] == "resource" {
-                        let key = b["resource"]["key"].as_str()?;
-                        let kind = b["resource"]["kind"].as_str()?;
+                    let resource = match b["type"].as_str() {
+                        Some("resource") => b.get("resource"),
+                        Some("linkCard") => b.get("thumbnail"),
+                        _ => None,
+                    };
+                    if let Some(resource) = resource {
+                        let key = resource["key"].as_str()?;
+                        let kind = resource["kind"].as_str()?;
                         return Some((conv.into(), mid.into(), key.into(), kind.into()));
                     }
                 }
@@ -1530,6 +1535,23 @@ fn resolve_command(dir: &std::path::Path, command: &str) -> String {
 #[cfg(test)]
 mod v12_tests {
     use super::*;
+
+    #[test]
+    fn link_card_covers_use_the_outer_message_in_resource_checks() {
+        let events = json!([{"type":"messages","messages":[{"conversationId":"chat","id":"article","content":[
+            {"type":"linkCard","url":"https://example.com"},
+            {"type":"linkCard","url":"https://example.com","thumbnail":{"kind":"image","key":"cover"}}
+        ]}]}]);
+        assert_eq!(
+            find_resource(events.as_array().unwrap()),
+            Some((
+                "chat".into(),
+                "article".into(),
+                "cover".into(),
+                "image".into()
+            ))
+        );
+    }
 
     fn manifest() -> Manifest {
         serde_json::from_value(json!({

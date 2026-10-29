@@ -20,6 +20,7 @@
 pub mod attribution;
 pub mod content;
 pub mod forwarded;
+pub mod link_card;
 pub mod login_window;
 pub mod method;
 pub mod platform;
