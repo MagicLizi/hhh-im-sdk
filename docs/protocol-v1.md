@@ -535,6 +535,7 @@ v13 起每一步都可以带 `links: [{id, label}]`（另一种做法，宿主�
 |---|---|---|---|
 | `contacts/profile` | `conversationId`、`userId` | `{relationship: "selfAccount" | "contact" | "notContact", conversationId?, canAdd: boolean}` | `people.contactActions` |
 | `contacts/add` | 同上；用户明确点击添加后才发送 | 同上；成功必须是 `contact`，提供已有或新建私聊编号 | `people.contactActions` |
+| `contacts/requests` | `operation` 为 `list` / `send` / `resend` / `respond`，见下 | `{items: ContactRequest[], next?, pending: number}` | `people.friendRequests`，缺省 false |
 | `contacts/list` | `limit`（1–100）、`cursor`? | `{items: Conversation[], next?}`；只含当前账号已有好友对应的私聊，必须有非空 `peer`，不能是本人 | `people.contacts` |
 | `conversations/list` | `limit`（1–100）、`cursor`? | `{items: Conversation[], next?}` | `conversations.list` |
 | `conversations/get` | `conversationId` | `Conversation` | 必需 |
@@ -548,6 +549,12 @@ v13 起每一步都可以带 `links: [{id, label}]`（另一种做法，宿主�
 | `reactions/list` | `conversationId`、`messageId`、`limit`（不超过 50）、`cursor`? | `{items: Reaction[], next?}` | `reactions.list` |
 | `emoji/catalog` | 无 | `{emojis: Emoji[], categories?, tones?, updatedAtMs}` | `reactions.catalog` |
 | `conversations/recentActivity` | `sinceMs`、`pagesMax`、`skip?`、`firstPageLimit?` | `{items: [{conversationId, kind, firstMs, latestMs, peerId?, conversation?, firstPage?}], complete}`：这段时间里有人（不算机器人、应用、经接口发的）发过消息的会话，每个会话一项，按最新一条从新到旧；`peerId` 是私聊的对方；`conversation`（v15，可选）是群与频道的资料（§7.2 的 Conversation），程序手边正好有时给，宿主就不再为它读一次 `conversations/get`，私聊不给；翻满 `pagesMax` 页还没到起点时 `complete` 为假。一次至多 1000 项（v12）。`skip`（v43，可选）是宿主已在同步的会话编号，程序可以不核对、不报（报了宿主照旧滤掉）。`firstPageLimit`（v43，可选）是宿主要的第一页至多几条，给了程序才可以附 `firstPage {items, more}`：会话主消息流最新的至多这么多条，不带时间条件，与 `messages/list`（`newestFirst`、同样条数）读到的同一批、同样翻译、页内从旧到新，`more` 为真表示平台上还有更早的；程序核对时正好读到了会话最新的消息才附，不为它多发请求；宿主第一次同步这个会话、本地还没有它的消息时就用这页，不再读一遍。消息内容只经 `firstPage` 交出 | `conversations.recentActivity` |
+
+**好友申请（可选）**：`people.friendRequests` 缺省 false。声明后，宿主使用 `contacts/requests`，不以 `contacts/add` 绕过批准；已有好友仍用 `contacts/profile` 和既有私聊。参数按 `operation` 区分：`list {incoming, cursor?, userId?}`（每页最多 100 条，游标不透明）；`send {requestId, conversationId, userId, message}`（群成员来源）；`resend {requestId, newRequestId, message}`（重申已结束申请）；`respond {requestId, action:"accept"|"reject"|"withdraw"}`。写操作由用户明确触发，申请编号跨网络重试保持不变。好友链接的身份核对和表单可由插件 action 流程完成，同样写入该申请账本。
+
+结果 `ContactRequest`：`requestId`、`incoming`、`userId`、`name`、`message`（无法验证旧身份时为 null）、`sourceConversationId?`、`sourceLabel`、`state`（pending/accepted/rejected/withdrawn/expired）、`createdMs`、`updatedMs`、`expiresMs`、`retryAfterMs?`、`conversationId?`。仅 accepted 有私聊编号。验证消息最多 80 个 Unicode 字符，不自动作为聊天发送。`pending` 是当前账号收到的待处理总数；身份、来源、期限与冷却由平台权威核验，宿主不据本地时间伪造批准。
+
+首次成功调用 `contacts/requests` 后，插件可以通知 `contacts/requestsChanged {}`，只提示当前连接账号重读，不携带关系事实；旧宿主未调用时不推。宿主切换账号后丢弃旧请求结果，重连补查；批准后保持原位置，由用户点击发消息才导航。定义见 SDK `contact_requests.rs`。
 
 - `messages/list` 的翻页规则同 hhh-im 的 `MessageQuery`：`newestFirst` 为真时，从最新往更早翻。
 - **发送前申请额度**（可选）：程序在 `initialize` 声明 `readRequestGating: true` 后，支持此扩展的宿主给上表读取的参数添加 `_meta: {readPermit: "不透明凭据"}`。程序每次发平台 HTTP 读取前，先反向请求 `requests/acquire {permit: "该凭据"}`，只有收到 `{granted: true}` 才能发送这一条；收到错误、空回执或连接断开时停止，不可自行补发。凭据只属于当前连接里的这次读取，不能保存、跨调用复用或用于写操作。

@@ -32,6 +32,8 @@ pub enum Method {
     ContactsProfile,
     /// Explicitly add a group member as a contact.
     ContactsAdd,
+    /// Query, send or explicitly resolve a friend request.
+    ContactsRequests,
     // —— 生命周期（宿主→插件）——
     /// 协商版本，取回平台说明与能力。
     Initialize,
@@ -221,6 +223,7 @@ impl Method {
             Method::ContactsList => "contacts/list",
             Method::ContactsProfile => "contacts/profile",
             Method::ContactsAdd => "contacts/add",
+            Method::ContactsRequests => "contacts/requests",
             Method::ConversationsGet => "conversations/get",
             Method::ConversationsSearch => "conversations/search",
             Method::ConversationsMembers => "conversations/members",
@@ -313,6 +316,7 @@ impl Method {
             Method::ContactsList,
             Method::ContactsProfile,
             Method::ContactsAdd,
+            Method::ContactsRequests,
             Method::ConversationsGet,
             Method::ConversationsSearch,
             Method::ConversationsMembers,

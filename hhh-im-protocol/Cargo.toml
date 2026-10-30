@@ -15,7 +15,7 @@
 [package]
 name = "hhh-im-protocol"
 # 协议包自己定版、不跟 HHH 走：公开仓库 hhh-im-sdk 按这个版本打标签（scripts/im-sdk-export.py 读它）。
-version = "0.19.0"
+version = "0.20.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/MagicLizi/hhh-im-sdk"

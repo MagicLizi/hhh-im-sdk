@@ -872,6 +872,9 @@ pub struct PeopleCaps {
     /// Explicit group-member contact lookup and addition; omitted for legacy plugins.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub contact_actions: bool,
+    /// Explicit friend approval; never assumed from contactActions.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub friend_requests: bool,
     /// 能分页列出已建立关系的联系人及其私聊资料，不依赖近期消息。
     /// 宿主按 `contacts/list` 读取；未声明时不发请求。
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -1431,6 +1434,7 @@ mod tests {
         assert_eq!(on["bots"], true);
         let off = serde_json::to_value(PeopleCaps {
             contact_actions: false,
+            friend_requests: false,
             get: true,
             search: false,
             bots: false,

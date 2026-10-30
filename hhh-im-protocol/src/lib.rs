@@ -18,6 +18,7 @@
 #![forbid(unsafe_code)]
 
 pub mod attribution;
+pub mod contact_requests;
 pub mod contacts;
 pub mod content;
 pub mod forwarded;
