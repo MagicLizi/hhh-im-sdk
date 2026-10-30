@@ -917,6 +917,10 @@ pub struct SendCaps {
     /// 能按操作编号查询发送结果。
     #[serde(default)]
     pub lookup: bool,
+    /// 收得下发出视频文件附带的视频信息（provider-protocol v52）：宿主先按图片上传封面，再在 `Outgoing::File`
+    /// 的 `video` 里给封面资源键、时长与宽高。要先能发文件；不写时宿主不上传封面、不带 `video`。
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub video_info: bool,
 }
 
 impl SendCaps {
@@ -1125,6 +1129,13 @@ impl Capabilities {
         if !self.rich_send.is_empty() && !self.send.as_ref().is_some_and(|send| send.text) {
             return Err("声明 richSend 时必须能发送文字".into());
         }
+        if self
+            .send
+            .as_ref()
+            .is_some_and(|send| send.video_info && !send.file)
+        {
+            return Err("声明 send.videoInfo 时必须能发文件（send.file）".into());
+        }
         if self.rich_send.edit && !self.edit {
             return Err("声明 richSend.edit 时必须能编辑（capabilities.edit）".into());
         }
@@ -1184,6 +1195,46 @@ mod tests {
         old.events.messages = true;
         old.events.conversations = true;
         assert!(old.check_consistent(HistoryMode::None).is_ok());
+    }
+
+    // 契约 provider-protocol v52：收视频信息是可选声明，要先能发文件；不写时序列化里没有这一键（旧宿主照旧）。
+    #[test]
+    fn v52_video_info_is_optional_and_requires_file() {
+        use super::*;
+        use serde_json::json;
+        let old: Capabilities = serde_json::from_value(
+            json!({"send": {"text": true, "file": true}, "messages": {"list": true}}),
+        )
+        .unwrap();
+        assert!(!old.send.unwrap().video_info, "旧插件不写就是不收视频信息");
+        assert!(
+            serde_json::to_value(&old).unwrap()["send"]
+                .get("videoInfo")
+                .is_none(),
+            "写回不多出键"
+        );
+
+        let mut caps: Capabilities = serde_json::from_value(
+            json!({"send": {"file": true, "videoInfo": true}, "messages": {"list": true}}),
+        )
+        .unwrap();
+        assert!(caps.send.unwrap().video_info);
+        assert!(caps.check_consistent(HistoryMode::Server).is_ok());
+        assert_eq!(
+            serde_json::to_value(&caps).unwrap()["send"]["videoInfo"],
+            true
+        );
+
+        caps.send = Some(SendCaps {
+            text: true,
+            video_info: true,
+            ..SendCaps::default()
+        });
+        assert!(
+            caps.check_consistent(HistoryMode::Server)
+                .unwrap_err()
+                .contains("send.videoInfo")
+        );
     }
 
     #[test]

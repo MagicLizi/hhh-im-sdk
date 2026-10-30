@@ -251,6 +251,7 @@
 - `messageMaintenance`（可选，默认假）允许宿主把已存的统一消息交给程序做本地修正或重读判定，不依赖 `raw`，不替代 `retranslate`。旧程序省略此能力照常接入。
 - `agentAttribution: {send, receive}`（可选）分别声明跨账号发送和接收伙伴署名，规则见 §7.4a；两项默认 false。send 要求可发文字，receive 要求可读取或接收消息。
 - `richSend: {formats, edit?}`（可选）声明 §7.8 的格式发送；`formats` 取 `strong`、`emphasis`、`underline`、`delete`、`inlineCode`、`link`、`blockquote`、`list`、`code`。要求 `send.text`，`edit: true` 另要求 `edit`。未知格式名忽略；省略或格式集合为空时不收格式正文。协议主版本不变。
+- v52：`send.videoInfo`（可选，默认 false）声明收得下发出视频附带的视频信息（§7.8 `file.video`）；要求 `send.file`，并收按图片上传的封面（`uploads/begin` 的 `kind: "image"`，不另要求 `send.image`）。不写时宿主不上传封面、`file` 里没有 `video`。
 
 - **只读连接**：`send` 为 null，或者其中各项都是 false。宿主不显示输入框，伙伴不在这个连接上回复，所有发送请求都在本地直接拒绝。
 - `history=server` 时，`messages.list` 必须为真。`history=none` 时，`events.messages` 必须为真。
@@ -521,7 +522,9 @@ v13 起每一步都可以带 `links: [{id, label}]`（另一种做法，宿主�
 
 ### 7.8 发出的内容（Outgoing）
 
-`text{text}`、`mention{userId,name}`、`mentionAll`、`image{key}`、`file{key}`。其中的 `key` 来自 `uploads/finish`。
+`text{text}`、`mention{userId,name}`、`mentionAll`、`image{key}`、`file{key, video?}`。其中的 `key` 来自 `uploads/finish`。
+
+`file.video`（v52，只交给声明了 `send.videoInfo` 的插件）：`{cover?, durationMs?, width?, height?}`，是宿主取的发出视频的封面、时长与画面宽高，每项都可选、读得到才有。`cover` 是宿主先按图片上传（`uploads/*`，`kind: "image"`）得到的资源键，与视频的 `key` 在同一次 `messages/send` 里引用；插件把它作为这条视频的封面交给平台，收到时对应 §9 资源的 `cover`、`durationMs` 与资源块宽高。封面上传失败时宿主不带 `cover` 照常发送。
 
 声明 `richSend` 后还可收到 `rich{root}`，根为 `{type:"root",children:[…]}`，节点复用 §7.6。一条格式正文单独占一条消息，不与附件或其它内容块混发。段落、文字、换行、提及和表情为基础节点，其余按 `formats`；提及仍受 `send.mentions` / `send.mentionAll` 约束。
 

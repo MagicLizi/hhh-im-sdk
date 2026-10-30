@@ -529,6 +529,9 @@ pub enum Outgoing {
     File {
         /// 资源键。
         key: String,
+        /// 视频信息（provider-protocol v52）：只交给声明了 `capabilities.send.videoInfo` 的插件，否则省略。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        video: Option<OutgoingVideo>,
     },
     /// 格式正文（契约 provider-protocol v40）：`{"type":"root","children":[...]}`，节点同收消息的 [`Block::Rich`]
     /// （protocol-v1 §7.6），用 [`crate::content::rich_outgoing`] 搭、[`crate::content::rich_nodes`] 读。
@@ -538,6 +541,51 @@ pub enum Outgoing {
         /// 语法树的根。
         root: serde_json::Value,
     },
+}
+
+/// 发出的视频文件附带的视频信息（provider-protocol v52），与收到方向的 [`Resource::cover`] /
+/// [`Resource::duration_ms`] 对应；每项都可选，宿主读得到才填。
+///
+/// # Examples
+///
+/// ```
+/// use hhh_im_protocol::types::{Outgoing, OutgoingVideo};
+/// let file: Outgoing = serde_json::from_value(serde_json::json!({
+///     "type": "file", "key": "v1",
+///     "video": { "cover": "c1", "durationMs": 3400, "width": 1080, "height": 1920 }
+/// })).unwrap();
+/// let Outgoing::File { video: Some(video), .. } = &file else { panic!() };
+/// assert_eq!(video.cover.as_deref(), Some("c1"));
+/// // 旧形状照读，写回不多出键。
+/// let old: Outgoing = serde_json::from_value(serde_json::json!({ "type": "file", "key": "f1" })).unwrap();
+/// assert_eq!(old, Outgoing::File { key: "f1".into(), video: None });
+/// assert_eq!(serde_json::to_value(&old).unwrap(), serde_json::json!({ "type": "file", "key": "f1" }));
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutgoingVideo {
+    /// 封面图片的资源键（`uploads/finish` 按图片给的）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cover: Option<String>,
+    /// 时长（毫秒）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+    /// 画面宽（像素）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    /// 画面高（像素）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+}
+
+impl OutgoingVideo {
+    /// 一项都没有时为真；宿主不发空的视频信息。
+    pub fn is_empty(&self) -> bool {
+        self.cover.is_none()
+            && self.duration_ms.is_none()
+            && self.width.is_none()
+            && self.height.is_none()
+    }
 }
 
 /// 发送目标（protocol-v1 §10）。
