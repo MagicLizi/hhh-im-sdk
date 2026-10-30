@@ -236,6 +236,10 @@ pub enum Block {
         /// 图片高（像素）。
         #[serde(default, skip_serializing_if = "Option::is_none")]
         height: Option<u32>,
+        /// 宽高只代表比例（契约 provider-protocol v51）：平台只给了缩略图之类的尺寸、不是这张图本身的像素时写 `true`，
+        /// 宿主按比例先占满显示框，读到图片后按图片本身；省略即宽高是图片真实的像素。没有宽高时不写。
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        aspect_only: bool,
     },
     /// 格式正文：mdast 子集语法树（protocol-v1 §7.6）；树体由适配器翻译。
     Rich {
@@ -808,6 +812,38 @@ mod tests {
         assert_eq!(v["text"], "你好");
         let back: Block = serde_json::from_value(v).unwrap();
         assert_eq!(back, b);
+    }
+
+    // 契约 provider-protocol v51：“宽高只代表比例”可选、默认省略；旧插件的资源块照读，写回不多出键。
+    #[test]
+    fn v51_resource_sizes_may_be_marked_aspect_only() {
+        let old = serde_json::json!({
+            "type": "resource", "resource": { "key": "image:1", "kind": "image" }, "width": 1280, "height": 747
+        });
+        let block: Block = serde_json::from_value(old.clone()).unwrap();
+        assert!(matches!(
+            block,
+            Block::Resource {
+                aspect_only: false,
+                ..
+            }
+        ));
+        assert_eq!(serde_json::to_value(&block).unwrap(), old);
+        let thumb = serde_json::json!({
+            "type": "resource", "resource": { "key": "image:2", "kind": "image" },
+            "width": 180, "height": 105, "aspectOnly": true
+        });
+        let block: Block = serde_json::from_value(thumb.clone()).unwrap();
+        assert!(matches!(
+            block,
+            Block::Resource {
+                width: Some(180),
+                height: Some(105),
+                aspect_only: true,
+                ..
+            }
+        ));
+        assert_eq!(serde_json::to_value(&block).unwrap(), thumb);
     }
 
     #[test]
